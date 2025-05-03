@@ -1022,6 +1022,7 @@ int main() {
 				}
 			}
 
+			send_idx = 0;
 			/* send ACK packet */
 			memcpy(send_buf, &seq, sizeof(seq));
 			// use blank to store return code of register
@@ -1031,8 +1032,38 @@ int main() {
 			memcpy(send_buf + send_idx, ACK, strlen(ACK));
 			send_idx += strlen(ACK);
 
-			sendto(sockfd, (const char *)send_buf, send_idx,
+			// printf("[DEBUG] server send ACK: seq=%d, return_code=%d\n", seq, register_return_code);
+			// printf("[DEBUG] send_buf: ");
+			// for (int i = 0; i < send_idx; ++i) printf("%02X ", (unsigned char)send_buf[i]);
+			// printf("\n");
+
+			int sent = sendto(sockfd, (const char *)send_buf, send_idx,
 				0, (const struct sockaddr *) &clientaddr, sizeof(clientaddr));
+
+			if (sent < 0) {
+				printf("send REGISTER ACK failure");
+			} else {
+				printf("send REGISTER ACK success");
+			}
+
+			// int send_idx = 0;
+			// memcpy(send_buf + send_idx, &seq, sizeof(seq));
+			// send_idx += sizeof(seq);
+			// memcpy(send_buf + send_idx, &register_return_code, sizeof(register_return_code));
+			// send_idx += sizeof(register_return_code);
+			// memcpy(send_buf + send_idx, ACK, strlen(ACK));
+			// send_idx += strlen(ACK);
+
+			// int sent = sendto(sockfd, (const char *)send_buf, send_idx,
+			// 	0, (const struct sockaddr *) &clientaddr, sizeof(clientaddr));
+
+			// if (sent < 0) {
+			// 	printf("send REGISTER ACK failure\n");
+			// } else {
+			// 	printf("send REGISTER ACK success\n");
+			// }
+			// fflush(stdout);
+
 		}
 
 
@@ -1090,6 +1121,7 @@ int main() {
 				update_node->file_map = new_map;
 				update_node->register_flag = updated_flag;
 
+				send_idx = 0;
 				// 发送ACK响应
 				memcpy(send_buf, &seq, sizeof(seq));
 				send_idx += 2; /* seq and blank */
@@ -1122,6 +1154,7 @@ int main() {
 				continue;
 			}
 
+			send_idx = 0;
 			/* send ACK packet */
 			memcpy(send_buf, &seq, sizeof(seq));
 			send_idx += 2; /* seq and blank */

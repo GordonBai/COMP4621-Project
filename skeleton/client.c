@@ -123,6 +123,7 @@ int rdt3_send(int sockfd, struct sockaddr_in servaddr, char ack_num, char *buffe
 		 *
 		 * START YOUR CODE HERE
 		 **********************************************/
+		recv_len = sizeof(recv_addr);
 		recv_len = recvfrom(sockfd, recv_buf, MAXMSG, 0, 
 			(struct sockaddr *)&recv_addr, &recv_len);
 		if (recv_len <= 0) {
@@ -130,24 +131,28 @@ int rdt3_send(int sockfd, struct sockaddr_in servaddr, char ack_num, char *buffe
             continue;
         }
         
-    
-		// 确保有足够的数据
-		if (recv_len < sizeof(SEQ0) + 1 + OP_SIZE) {
-			continue;
-		}
+        // 确保有足够的数据
+        if (recv_len < 2 + strlen(ACK)) {
+            continue;
+        }
 
-		parse_idx = 0;
-		memcpy(&seq, recv_buf, sizeof(SEQ0));
-		parse_idx += sizeof(SEQ0);
+        parse_idx = 0;
+        memcpy(&seq, recv_buf, 1);  // 复制序列号
+        parse_idx += 1;
 
-		parse_idx++;	// space
+        memcpy(&return_code, recv_buf + parse_idx, 1);  // 复制返回码
+        parse_idx += 1;
 
-		memcpy(op, recv_buf + parse_idx, OP_SIZE);
-		op[OP_SIZE-1] = '\0';	// 确保字符串结束
+        // 检查是否是ACK包
+        if (strncmp(recv_buf + parse_idx, ACK, strlen(ACK)) == 0 && noack_num == seq) {
+            waiting = 0;  // 收到正确的ACK，退出循环
+        }
+			
+		// printf("[DEBUG] recv_len=%d, seq=%d, return_code=%d, op=%.8s, noack_num=%d\n", recv_len, seq, return_code, op, noack_num);
 
-		if (strncmp(op, ACK, strlen(ACK)) == 0 && noack_num == seq)
-			break;
-		
+		// printf("[DEBUG] recv_buf: ");
+		// for (int i = 0; i < recv_len; ++i) printf("%02X ", (unsigned char)recv_buf[i]);
+		// printf("\n");
 
 		/***********************************************
 		 * END OF YOUR CODE
@@ -604,9 +609,10 @@ void* p2p_server(void* arg) {
 					 *
 					 * START YOUR CODE HERE
 					 **********************************************/
-
+					long network_file_size = htonl(file_size);
+					// printf("[DEBUG] p2p_server: open file '%s', fp=%p, file_size=%ld\n", buffer, fp, network_file_size);
 					// 发送文件大小
-                    if (send(new_socket, &file_size, sizeof(file_size), 0) < 0) {
+                    if (send(new_socket, &network_file_size, sizeof(network_file_size), 0) < 0) {
                         perror("send file size error");
                         exit(EXIT_FAILURE);
                     }
@@ -691,13 +697,15 @@ int p2p_client(unsigned int ip, unsigned short port, char *file_name) {
 	 *
 	 * START YOUR CODE HERE
 	 **********************************************/
-	long file_size;
+	long network_file_size;
 	// server端是先发文件大小；再发文件内容的
 	// 首先接收文件大小
-	if (recv(sock, &file_size, sizeof(file_size), 0) < 0) {
+	if (recv(sock, &network_file_size, sizeof(network_file_size), 0) < 0) {
 		perror("recv file size error");
 		return -1;
 	}
+	long file_size = ntohl(network_file_size);
+	printf("[DEBUG] p2p_client: expect to receive file_size=%ld\n", file_size);
 
 	// 接收文件内容
 	// 并循环写入，直到写入的长度等于file_size
