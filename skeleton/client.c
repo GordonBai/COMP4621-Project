@@ -8,6 +8,7 @@
 #include <arpa/inet.h>
 #include <pthread.h>
 #include <poll.h>
+#include <errno.h>
 
 #define SERVER "127.0.0.1"
 #define SERVER_PORT 5000
@@ -571,7 +572,8 @@ void* p2p_server(void* arg) {
 
                     // 将新连接添加到poll集合
                     add_to_pfds(&pfds, new_socket, &fd_count, &fd_size);
-                    printf("New connection from %s on socket %d accepted\n", address.sin_addr, new_socket);
+                    printf("New connection from %s on socket %d accepted\n", 
+                        inet_ntoa(address.sin_addr), new_socket);
 
 
 					/***********************************************
@@ -596,12 +598,14 @@ void* p2p_server(void* arg) {
 					}
 
 					bzero(buffer, MAXMSG);
-
+					
 					long file_size;
 					// Get the file size
 					fseek(fp, 0, SEEK_END);
 					file_size = ftell(fp);
 					fseek(fp, 0, SEEK_SET);
+
+					printf("[DEBUG] p2p_server: 文件 '%s' 大小为 %ld 字节\n", buffer, file_size);
 
 					/***********************************************
 					 * Refer to the description, send the file length
@@ -609,22 +613,31 @@ void* p2p_server(void* arg) {
 					 *
 					 * START YOUR CODE HERE
 					 **********************************************/
+					printf("[DEBUG] p2p_server: 开始处理文件，文件大小为%ld字节\n", file_size);
+					
+					/// 将文件大小转换为网络字节序
 					long network_file_size = htonl(file_size);
-					// printf("[DEBUG] p2p_server: open file '%s', fp=%p, file_size=%ld\n", buffer, fp, network_file_size);
+					printf("[DEBUG] p2p_server: 网络字节序的文件大小=%ld\n", network_file_size);
+					
 					// 发送文件大小
                     if (send(new_socket, &network_file_size, sizeof(network_file_size), 0) < 0) {
                         perror("send file size error");
                         exit(EXIT_FAILURE);
                     }
+                    printf("[DEBUG] p2p_server: 已发送文件大小信息\n");
 
                     // 发送文件内容
+                    size_t total_sent = 0;
                     while ((bytes_read = fread(buffer, 1, MAXMSG, fp)) > 0) {
                         if (send(new_socket, buffer, bytes_read, 0) < 0) {
                             perror("send file content error");
                             exit(EXIT_FAILURE);
                         }
+                        total_sent += bytes_read;
+                        printf("[DEBUG] p2p_server: 已发送 %zu 字节，总共 %zu/%ld 字节\n", 
+                            bytes_read, total_sent, file_size);
                     }
-
+                    printf("[DEBUG] p2p_server: 文件发送完成\n");
 
 					/***********************************************
 					 * END OF YOUR CODE
@@ -697,14 +710,18 @@ int p2p_client(unsigned int ip, unsigned short port, char *file_name) {
 	 *
 	 * START YOUR CODE HERE
 	 **********************************************/
+	printf("[DEBUG] p2p_client: 开始接收文件\n");
+	
 	long network_file_size;
 	// server端是先发文件大小；再发文件内容的
 	// 首先接收文件大小
+	printf("[DEBUG] p2p_client: 准备接收文件大小\n");
 	if (recv(sock, &network_file_size, sizeof(network_file_size), 0) < 0) {
 		perror("recv file size error");
 		return -1;
 	}
 	long file_size = ntohl(network_file_size);
+	printf("[DEBUG] p2p_client: 接收到网络字节序文件大小=%ld，转换后=%ld\n", network_file_size, file_size);
 	printf("[DEBUG] p2p_client: expect to receive file_size=%ld\n", file_size);
 
 	// 接收文件内容

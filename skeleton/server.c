@@ -774,8 +774,12 @@ void* chat_server(void* arguments) {
 							// 向所有其他聊天用户广播消息
 							for (int j = 1; j < fd_count; j++) {
 								if (j != i && pfds[j].fd != server_fd) {
-									if (send(pfds[j].fd, msg, strlen(msg), 0) < 0) {
-										perror("server send error");
+									char recv_name[MAXNAME];
+									char recv_flag;
+									if (query_name_flag_by_idx(*node_head, j - 1, recv_name, &recv_flag) == 0 && (recv_flag & CHAT_FLAG)) {
+										if (send(pfds[j].fd, msg, strlen(msg), 0) < 0) {
+											perror("server send error");
+										}
 									}
 								}
 							}
